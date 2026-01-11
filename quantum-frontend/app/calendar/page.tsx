@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Brain, Video, Plus, Clock, Users, ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText, ArrowRight } from "lucide-react";
+import { Brain, Video, Plus, Clock, Users, ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText, ArrowRight, CheckSquare } from "lucide-react";
 import { mockMeetings, Meeting } from "@/lib/mock-data";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api-client";
@@ -20,21 +20,102 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 
+interface Task {
+    id: string;
+    title: string;
+    description?: string;
+    dueDate: Date;
+    priority: "high" | "medium" | "low";
+    status: "todo" | "in-progress" | "done";
+    assignee?: string;
+}
+
 interface CalendarEvent {
     id: string;
     title: string;
     start: Date;
     end: Date;
-    meeting: Meeting;
+    meeting?: Meeting;
+    task?: Task;
     color: string;
+    type: "meeting" | "task";
 }
+
+// Demo tasks for the calendar
+const demoTasks: Task[] = [
+    {
+        id: "t1",
+        title: "Review Q1 Product Roadmap",
+        description: "Review and finalize the Q1 product roadmap document",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 2)),
+        priority: "high",
+        status: "todo",
+        assignee: "Sarah Chen",
+    },
+    {
+        id: "t2",
+        title: "Prepare Client Presentation",
+        description: "Create presentation slides for upcoming client meeting",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 5)),
+        priority: "high",
+        status: "in-progress",
+        assignee: "Mike Johnson",
+    },
+    {
+        id: "t3",
+        title: "Update API Documentation",
+        description: "Document new API endpoints for emotion analysis",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+        priority: "medium",
+        status: "todo",
+        assignee: "Alex Kumar",
+    },
+    {
+        id: "t4",
+        title: "Team Standup Meeting Prep",
+        description: "Prepare agenda and talking points for team standup",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+        priority: "low",
+        status: "todo",
+        assignee: "Priya Patel",
+    },
+    {
+        id: "t5",
+        title: "Code Review: Emotion Module",
+        description: "Review pull request for emotion detection module",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 3)),
+        priority: "high",
+        status: "todo",
+        assignee: "Dev Team",
+    },
+    {
+        id: "t6",
+        title: "Update Meeting Notes Template",
+        description: "Revise the meeting notes template based on feedback",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 10)),
+        priority: "low",
+        status: "todo",
+        assignee: "Sarah Chen",
+    },
+    {
+        id: "t7",
+        title: "Schedule Q2 Planning Session",
+        description: "Coordinate with team to schedule Q2 planning meeting",
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 4)),
+        priority: "medium",
+        status: "in-progress",
+        assignee: "Mike Johnson",
+    },
+];
 
 export default function CalendarPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [meetings, setMeetings] = useState<Meeting[]>(mockMeetings);
+    const [tasks, setTasks] = useState<Task[]>(demoTasks);
     const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
@@ -43,16 +124,30 @@ export default function CalendarPage() {
 
     useEffect(() => {
         // Convert meetings to calendar events
-        const events: CalendarEvent[] = meetings.map((meeting) => ({
+        const meetingEvents: CalendarEvent[] = meetings.map((meeting) => ({
             id: meeting.id,
             title: meeting.title,
             start: new Date(meeting.date),
             end: new Date(new Date(meeting.date).getTime() + meeting.duration * 60000),
             meeting: meeting,
             color: getMeetingColor(meeting.title),
+            type: "meeting",
         }));
-        setCalendarEvents(events);
-    }, [meetings]);
+
+        // Convert tasks to calendar events
+        const taskEvents: CalendarEvent[] = tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            start: new Date(task.dueDate),
+            end: new Date(task.dueDate),
+            task: task,
+            color: getTaskColor(task.priority),
+            type: "task",
+        }));
+
+        // Combine all events
+        setCalendarEvents([...meetingEvents, ...taskEvents]);
+    }, [meetings, tasks]);
 
     const fetchMeetings = async () => {
         try {
@@ -92,6 +187,19 @@ export default function CalendarPage() {
         return colors[Math.abs(hash) % colors.length];
     };
 
+    const getTaskColor = (priority: "high" | "medium" | "low") => {
+        switch (priority) {
+            case "high":
+                return "#EF4444"; // Red
+            case "medium":
+                return "#F59E0B"; // Amber
+            case "low":
+                return "#10B981"; // Green
+            default:
+                return "#6B7280"; // Gray
+        }
+    };
+
     const getDaysInMonth = (date: Date) => {
         const year = date.getFullYear();
         const month = date.getMonth();
@@ -126,6 +234,18 @@ export default function CalendarPage() {
         });
     };
 
+    const openEventModal = (event: CalendarEvent) => {
+        if (event.type === "meeting" && event.meeting) {
+            setSelectedMeeting(event.meeting);
+            setSelectedTask(null);
+            setIsModalOpen(true);
+        } else if (event.type === "task" && event.task) {
+            setSelectedTask(event.task);
+            setSelectedMeeting(null);
+            setIsModalOpen(true);
+        }
+    };
+
     const formatDateHeader = (date: Date) => {
         return date.toLocaleDateString('en-US', {
             year: 'numeric',
@@ -145,10 +265,6 @@ export default function CalendarPage() {
         });
     };
 
-    const openMeetingModal = (event: CalendarEvent) => {
-        setSelectedMeeting(event.meeting);
-        setIsModalOpen(true);
-    };
 
     const monthDays = getDaysInMonth(currentDate);
     const upcomingEvents = calendarEvents.filter(e => e.start >= new Date()).slice(0, 5);
@@ -288,12 +404,26 @@ export default function CalendarPage() {
                                             {dayEvents.slice(0, 2).map(event => (
                                                 <div
                                                     key={event.id}
-                                                    onClick={() => openMeetingModal(event)}
-                                                    className="text-xs p-1.5 rounded-md text-white cursor-pointer hover:opacity-90 transition-all duration-200 font-medium shadow-sm truncate"
-                                                    style={{ backgroundColor: event.color }}
+                                                    onClick={() => openEventModal(event)}
+                                                    className={`text-xs p-1.5 rounded-md cursor-pointer hover:opacity-90 transition-all duration-200 font-medium shadow-sm truncate flex items-center gap-1 ${
+                                                        event.type === "task" 
+                                                            ? "text-white border-l-2" 
+                                                            : "text-white"
+                                                    }`}
+                                                    style={{ 
+                                                        backgroundColor: event.color,
+                                                        borderLeftColor: event.type === "task" ? "#FFFFFF" : "transparent",
+                                                        borderLeftWidth: event.type === "task" ? "3px" : "0px"
+                                                    }}
                                                     title={event.title}
                                                 >
-                                                    {event.title}
+                                                    {event.type === "task" && (
+                                                        <CheckSquare className="h-3 w-3 flex-shrink-0" />
+                                                    )}
+                                                    {event.type === "meeting" && (
+                                                        <Video className="h-3 w-3 flex-shrink-0" />
+                                                    )}
+                                                    <span className="truncate">{event.title}</span>
                                                 </div>
                                             ))}
                                             {dayEvents.length > 2 && (
@@ -324,6 +454,10 @@ export default function CalendarPage() {
                                     <span className="font-bold text-xl">{meetings.length}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">Total Tasks:</span>
+                                    <span className="font-bold text-xl text-green-600">{tasks.length}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
                                     <span className="text-muted-foreground">This Month:</span>
                                     <span className="font-bold text-xl text-purple-600">
                                         {calendarEvents.filter(e => {
@@ -346,7 +480,7 @@ export default function CalendarPage() {
                     {/* Upcoming Meetings */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Upcoming Meetings</CardTitle>
+                            <CardTitle className="text-sm font-medium">Upcoming Events</CardTitle>
                             <Clock className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -356,14 +490,24 @@ export default function CalendarPage() {
                                         <div 
                                             key={event.id} 
                                             className="flex items-center space-x-3 p-2 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                                            onClick={() => openMeetingModal(event)}
+                                            onClick={() => openEventModal(event)}
                                         >
                                             <div
-                                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                                className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                                    event.type === "task" ? "rounded-sm" : ""
+                                                }`}
                                                 style={{ backgroundColor: event.color }}
                                             ></div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-sm truncate">{event.title}</div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {event.type === "task" && (
+                                                        <CheckSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                                    )}
+                                                    {event.type === "meeting" && (
+                                                        <Video className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                                    )}
+                                                    <span className="font-semibold text-sm truncate">{event.title}</span>
+                                                </div>
                                                 <div className="text-xs text-muted-foreground">
                                                     {format(event.start, "PPp")}
                                                 </div>
@@ -372,7 +516,7 @@ export default function CalendarPage() {
                                     ))
                                 ) : (
                                     <div className="text-center py-4">
-                                        <p className="text-sm text-muted-foreground">No upcoming meetings</p>
+                                        <p className="text-sm text-muted-foreground">No upcoming events</p>
                                     </div>
                                 )}
                             </div>
@@ -409,13 +553,16 @@ export default function CalendarPage() {
                 </div>
             </div>
 
-            {/* Meeting Details Modal */}
+            {/* Event Details Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     {selectedMeeting && (
                         <>
                             <DialogHeader>
-                                <DialogTitle className="text-2xl">{selectedMeeting.title}</DialogTitle>
+                                <DialogTitle className="text-2xl flex items-center gap-2">
+                                    <Video className="h-5 w-5" />
+                                    {selectedMeeting.title}
+                                </DialogTitle>
                                 <DialogDescription>
                                     Meeting details and information
                                 </DialogDescription>
@@ -492,6 +639,78 @@ export default function CalendarPage() {
                                     <Button className="bg-gradient-to-r from-purple-600 to-blue-600" asChild>
                                         <Link href={`/meetings/${selectedMeeting.id}`}>
                                             View Details
+                                            <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    {selectedTask && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl flex items-center gap-2">
+                                    <CheckSquare className="h-5 w-5" />
+                                    {selectedTask.title}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Task details and information
+                                </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-6 mt-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <div className="text-sm text-muted-foreground">Due Date</div>
+                                            <div className="font-medium">{format(selectedTask.dueDate, "PPp")}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Badge 
+                                            variant="outline" 
+                                            className={
+                                                selectedTask.priority === "high" 
+                                                    ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                                                    : selectedTask.priority === "medium"
+                                                    ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20"
+                                                    : "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+                                            }
+                                        >
+                                            {selectedTask.priority} priority
+                                        </Badge>
+                                    </div>
+                                    {selectedTask.assignee && (
+                                        <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-muted-foreground" />
+                                            <div>
+                                                <div className="text-sm text-muted-foreground">Assignee</div>
+                                                <div className="font-medium">{selectedTask.assignee}</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant="secondary">
+                                            {selectedTask.status}
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                {selectedTask.description && (
+                                    <div>
+                                        <h4 className="font-semibold mb-2">Description</h4>
+                                        <p className="text-sm text-muted-foreground">{selectedTask.description}</p>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-2 pt-4 border-t">
+                                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                                        Close
+                                    </Button>
+                                    <Button className="bg-gradient-to-r from-purple-600 to-blue-600" asChild>
+                                        <Link href="/tasks">
+                                            View in Tasks
                                             <ArrowRight className="h-4 w-4 ml-2" />
                                         </Link>
                                     </Button>
