@@ -42,6 +42,16 @@ export default function BotManagementPage() {
             toast.success(result.message || "Bot started successfully!");
             setCurrentMeetingId(result.meeting_id);
 
+            // Start emotion analysis in parallel
+            try {
+                await apiClient.startEmotionAnalysis(platform, result.meeting_id);
+                toast.success("Emotion analysis started!");
+            } catch (emotionError: any) {
+                console.error("Failed to start emotion analysis:", emotionError);
+                // Don't fail the whole operation if emotion analysis fails
+                toast.warning("Bot started, but emotion analysis failed to start");
+            }
+
             // Refresh bot status
             setTimeout(() => {
                 refreshBotStatus();
@@ -56,14 +66,35 @@ export default function BotManagementPage() {
     const handleStopBot = async (botPlatform: string, meetingId: string) => {
         setLoading(true);
         try {
+            // Stop emotion analysis first and get summary
+            let emotionSummary = null;
+            try {
+                emotionSummary = await apiClient.stopEmotionAnalysis(botPlatform, meetingId);
+                if (emotionSummary.success) {
+                    // Store summary for display
+                    sessionStorage.setItem(`emotion_summary_${meetingId}`, JSON.stringify(emotionSummary));
+                    toast.success(`Meeting mood: ${emotionSummary.engagement_score}/10 engagement score`);
+                }
+            } catch (emotionError: any) {
+                console.error("Failed to stop emotion analysis:", emotionError);
+                // Continue even if emotion analysis fails
+            }
+
             const result = await apiClient.stopBot(botPlatform, meetingId);
             toast.success(result.message || "Bot stopped successfully! API credits freed.");
             setCurrentMeetingId("");
 
-            // Refresh bot status
-            setTimeout(() => {
-                refreshBotStatus();
-            }, 1000);
+            // Navigate to emotion analytics if summary available
+            if (emotionSummary?.success) {
+                setTimeout(() => {
+                    window.location.href = `/analytics/emotion?platform=${botPlatform}&meetingId=${meetingId}`;
+                }, 1500);
+            } else {
+                // Refresh bot status
+                setTimeout(() => {
+                    refreshBotStatus();
+                }, 1000);
+            }
         } catch (error: any) {
             toast.error(error.message || "Failed to stop bot");
         } finally {

@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Brain, Download, TrendingUp, Smile, Frown, Meh, ArrowLeft, RefreshCw } from "lucide-react";
+import { Brain, Download, TrendingUp, Smile, Frown, Meh, ArrowLeft, RefreshCw, Upload, Video } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { useSearchParams } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 const emotionColors = {
     happy: "#10b981",
@@ -35,9 +36,30 @@ function EmotionAnalyticsContent() {
     const [engagementScore, setEngagementScore] = useState<number>(7.5);
     const [emotionTimeline, setEmotionTimeline] = useState<EmotionTimelinePoint[]>([]);
     const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [videoAnalysisData, setVideoAnalysisData] = useState<any>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (meetingId) {
+            // Check for stored summary from sessionStorage
+            const storedSummary = sessionStorage.getItem(`emotion_summary_${meetingId}`);
+            if (storedSummary) {
+                try {
+                    const summary = JSON.parse(storedSummary);
+                    if (summary.success) {
+                        setEngagementScore(summary.engagement_score || summary.overall_score || 7.5);
+                        setEmotionTimeline(summary.timeline || []);
+                        setVideoAnalysisData(summary);
+                        setLoading(false);
+                        // Clear stored summary after using it
+                        sessionStorage.removeItem(`emotion_summary_${meetingId}`);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse stored summary:", e);
+                }
+            }
             fetchEmotionData();
         } else {
             // Use default mock data if no meeting ID
@@ -73,6 +95,46 @@ function EmotionAnalyticsContent() {
         }
     };
 
+    const handleVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('video/')) {
+            toast.error("Please select a video file");
+            return;
+        }
+
+        // Check file size (limit to 500MB)
+        const maxSize = 500 * 1024 * 1024; // 500MB
+        if (file.size > maxSize) {
+            toast.error("Video file is too large. Maximum size is 500MB.");
+            return;
+        }
+
+        setSelectedFile(file);
+        setUploading(true);
+
+        try {
+            console.log("Uploading video file:", file.name, "Size:", (file.size / 1024 / 1024).toFixed(2), "MB");
+            const result = await apiClient.analyzeVideoEmotions(file, meetingId || undefined);
+            
+            if (result.success) {
+                setVideoAnalysisData(result);
+                setEngagementScore(result.engagement_score || result.overall_score || 7.5);
+                setEmotionTimeline(result.timeline || []);
+                toast.success("Video analysis completed successfully!");
+            } else {
+                toast.error(result.message || "Video analysis failed");
+            }
+        } catch (error: any) {
+            console.error("Failed to analyze video:", error);
+            const errorMessage = error.message || "Failed to analyze video. Please check if the backend server is running.";
+            toast.error(errorMessage);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const getEmotionBadgeColor = (emotion: string) => {
         switch (emotion.toLowerCase()) {
             case "happy":
@@ -83,18 +145,39 @@ function EmotionAnalyticsContent() {
                 return "bg-orange-500/10 text-orange-600 border-orange-500/20 hover:bg-orange-500/20";
             case "frustrated":
                 return "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20";
+            case "sad":
+                return "bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20";
+            case "angry":
+                return "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20";
+            case "surprise":
+                return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20 hover:bg-yellow-500/20";
+            case "fear":
+                return "bg-purple-500/10 text-purple-600 border-purple-500/20 hover:bg-purple-500/20";
             default:
                 return "bg-gray-500/10 text-gray-600 border-gray-500/20";
         }
     };
 
     // Prepare data for charts
-    const emotionDistribution = [
-        { name: "Happy", value: 65, color: emotionColors.happy },
-        { name: "Neutral", value: 25, color: emotionColors.neutral },
-        { name: "Concerned", value: 8, color: emotionColors.concerned },
-        { name: "Frustrated", value: 2, color: emotionColors.frustrated },
-    ];
+    const emotionDistribution = videoAnalysisData?.summary?.overall_emotion_distribution
+        ? (() => {
+            const distribution = videoAnalysisData.summary.overall_emotion_distribution as Record<string, number>;
+            const total = Object.values(distribution).reduce((a, b) => a + b, 0);
+            return Object.entries(distribution).map(([emotion, count]) => {
+                const percentage = total > 0 ? (count / total) * 100 : 0;
+                return {
+                    name: emotion.charAt(0).toUpperCase() + emotion.slice(1),
+                    value: Math.round(percentage),
+                    color: emotionColors[emotion.toLowerCase() as keyof typeof emotionColors] || emotionColors.neutral
+                };
+            });
+        })()
+        : [
+            { name: "Happy", value: 65, color: emotionColors.happy },
+            { name: "Neutral", value: 25, color: emotionColors.neutral },
+            { name: "Concerned", value: 8, color: emotionColors.concerned },
+            { name: "Frustrated", value: 2, color: emotionColors.frustrated },
+        ];
 
     return (
         <div className="min-h-screen bg-background">
@@ -144,12 +227,111 @@ function EmotionAnalyticsContent() {
 
             <div className="container mx-auto px-4 py-8 max-w-4xl">
                 {/* Back Button */}
-                <Link href={meetingId ? `/meetings/${meetingId}` : "/dashboard"}>
-                    <Button variant="ghost" className="mb-6">
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back
-                    </Button>
-                </Link>
+                <div className="flex items-center justify-between mb-6">
+                    <Link href={meetingId ? `/meetings/${meetingId}` : "/dashboard"}>
+                        <Button variant="ghost">
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Back
+                        </Button>
+                    </Link>
+                    
+                    {/* Video Upload Button */}
+                    <div className="flex items-center gap-4">
+                        <div className="relative">
+                            <Input
+                                type="file"
+                                accept="video/*"
+                                onChange={handleVideoUpload}
+                                className="hidden"
+                                id="video-upload"
+                                disabled={uploading}
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={() => document.getElementById('video-upload')?.click()}
+                                disabled={uploading}
+                                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white border-0"
+                            >
+                                {uploading ? (
+                                    <>
+                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                        Analyzing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload className="h-4 w-4 mr-2" />
+                                        Analyze Video
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                        {selectedFile && (
+                            <span className="text-sm text-muted-foreground">
+                                {selectedFile.name}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Meeting Mood Summary - Prominent Display */}
+                {videoAnalysisData?.summary && (
+                    <Card className="border-2 mb-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
+                        <CardHeader>
+                            <CardTitle className="text-2xl flex items-center gap-2">
+                                <Brain className="h-6 w-6 text-purple-600" />
+                                Overall Meeting Mood Summary
+                            </CardTitle>
+                            <CardDescription>
+                                Complete emotion analysis from your meeting
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+                                    <div className="text-4xl font-bold text-purple-600 mb-2">
+                                        {engagementScore.toFixed(1)}/10
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">Engagement Score</div>
+                                    <Progress value={engagementScore * 10} className="mt-2" />
+                                </div>
+                                <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+                                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                                        {videoAnalysisData.summary.total_people_active || 0}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">Participants Analyzed</div>
+                                </div>
+                                <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+                                    <div className="text-4xl font-bold text-green-600 mb-2">
+                                        {Math.round(videoAnalysisData.summary.meeting_duration || 0)}s
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">Meeting Duration</div>
+                                </div>
+                            </div>
+                            
+                            {videoAnalysisData.summary.overall_emotion_distribution && (
+                                <div className="mt-4">
+                                    <h4 className="font-semibold mb-3">Emotion Distribution</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(videoAnalysisData.summary.overall_emotion_distribution).map(([emotion, count]: [string, any]) => {
+                                            const distribution = videoAnalysisData.summary.overall_emotion_distribution as Record<string, number>;
+                                            const total = Object.values(distribution).reduce((a, b) => a + b, 0);
+                                            const percentage = total > 0 ? ((count as number) / total) * 100 : 0;
+                                            return (
+                                                <Badge
+                                                    key={emotion}
+                                                    variant="outline"
+                                                    className={`px-4 py-2 rounded-full text-sm font-medium ${getEmotionBadgeColor(emotion)}`}
+                                                >
+                                                    {emotion.charAt(0).toUpperCase() + emotion.slice(1)}: {percentage.toFixed(1)}%
+                                                </Badge>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Emotion Analysis Card - Matching Image Design */}
                 <Card className="border-2">
@@ -291,6 +473,75 @@ function EmotionAnalyticsContent() {
                                 </CardContent>
                             </Card>
                         </div>
+
+                        {/* Video Analysis Summary */}
+                        {videoAnalysisData?.summary && (
+                            <Card className="mb-6">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Video className="h-5 w-5" />
+                                        Video Analysis Summary
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Analysis results from uploaded video
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <div className="text-sm text-muted-foreground">Duration</div>
+                                            <div className="text-lg font-semibold">
+                                                {Math.round(videoAnalysisData.summary.meeting_duration)}s
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-muted-foreground">People Detected</div>
+                                            <div className="text-lg font-semibold">
+                                                {videoAnalysisData.summary.total_people_active}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-muted-foreground">Total Detected</div>
+                                            <div className="text-lg font-semibold">
+                                                {videoAnalysisData.summary.total_people_detected}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-muted-foreground">Analysis Method</div>
+                                            <div className="text-lg font-semibold">Video AI</div>
+                                        </div>
+                                    </div>
+                                    
+                                    {videoAnalysisData.summary.people && videoAnalysisData.summary.people.length > 0 && (
+                                        <div className="mt-6 space-y-4">
+                                            <h4 className="font-semibold">Per-Person Analysis</h4>
+                                            {videoAnalysisData.summary.people.map((person: any, idx: number) => (
+                                                <Card key={idx} className="p-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="font-medium">{person.person_name}</div>
+                                                        <Badge variant="outline" className={getEmotionBadgeColor(person.dominant_emotion || 'neutral')}>
+                                                            {person.dominant_emotion || 'N/A'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground mb-2">
+                                                        Speaking: {person.speaking_percentage?.toFixed(1)}%
+                                                    </div>
+                                                    {person.emotion_percentages && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {Object.entries(person.emotion_percentages).map(([emotion, pct]: [string, any]) => (
+                                                                <Badge key={emotion} variant="outline" className="text-xs">
+                                                                    {emotion}: {pct.toFixed(1)}%
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Charts Section */}
                         <div className="grid lg:grid-cols-2 gap-6">

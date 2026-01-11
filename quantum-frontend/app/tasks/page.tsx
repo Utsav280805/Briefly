@@ -13,6 +13,23 @@ import { DndContext, DragEndEvent, closestCorners } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 // Extract all action items from meetings
 const allTasks: ActionItem[] = mockMeetings.flatMap((m) => m.actionItems);
@@ -72,6 +89,14 @@ export default function TasksPage() {
         "in-progress": allTasks.filter((t) => t.status === "in-progress"),
         done: allTasks.filter((t) => t.status === "done"),
     });
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [newTask, setNewTask] = useState({
+        task: "",
+        owner: "",
+        dueDate: "",
+        priority: "medium" as "high" | "medium" | "low",
+        status: "todo" as "todo" | "in-progress" | "done",
+    });
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -79,6 +104,40 @@ export default function TasksPage() {
 
         // In a real app, this would update the task status
         console.log(`Moved task ${active.id} to ${over.id}`);
+    };
+
+    const handleCreateTask = () => {
+        if (!newTask.task.trim() || !newTask.owner.trim() || !newTask.dueDate) {
+            toast.error("Please fill in all required fields");
+            return;
+        }
+
+        const taskId = `task-${Date.now()}`;
+        const newTaskItem: ActionItem = {
+            id: taskId,
+            task: newTask.task,
+            owner: newTask.owner,
+            dueDate: newTask.dueDate,
+            priority: newTask.priority,
+            status: newTask.status,
+            meetingId: "",
+        };
+
+        setTasks((prev) => ({
+            ...prev,
+            [newTask.status]: [...prev[newTask.status], newTaskItem],
+        }));
+
+        // Reset form
+        setNewTask({
+            task: "",
+            owner: "",
+            dueDate: "",
+            priority: "medium",
+            status: "todo",
+        });
+        setIsDialogOpen(false);
+        toast.success("Task created successfully!");
     };
 
     return (
@@ -134,7 +193,10 @@ export default function TasksPage() {
                         <h1 className="text-3xl font-bold mb-2">Task Board</h1>
                         <p className="text-muted-foreground">Manage tasks extracted from your meetings</p>
                     </div>
-                    <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                    <Button 
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        onClick={() => setIsDialogOpen(true)}
+                    >
                         <Plus className="h-4 w-4 mr-2" />
                         New Task
                     </Button>
@@ -223,6 +285,102 @@ export default function TasksPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* New Task Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Create New Task</DialogTitle>
+                        <DialogDescription>
+                            Add a new task to your task board
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 mt-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="task">Task Title *</Label>
+                            <Input
+                                id="task"
+                                placeholder="Enter task description"
+                                value={newTask.task}
+                                onChange={(e) => setNewTask({ ...newTask, task: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="owner">Assignee *</Label>
+                            <Input
+                                id="owner"
+                                placeholder="Enter assignee name"
+                                value={newTask.owner}
+                                onChange={(e) => setNewTask({ ...newTask, owner: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="dueDate">Due Date *</Label>
+                                <Input
+                                    id="dueDate"
+                                    type="date"
+                                    value={newTask.dueDate}
+                                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="priority">Priority</Label>
+                                <Select
+                                    value={newTask.priority}
+                                    onValueChange={(value: "high" | "medium" | "low") =>
+                                        setNewTask({ ...newTask, priority: value })
+                                    }
+                                >
+                                    <SelectTrigger id="priority">
+                                        <SelectValue placeholder="Select priority" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="high">High</SelectItem>
+                                        <SelectItem value="medium">Medium</SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="status">Status</Label>
+                            <Select
+                                value={newTask.status}
+                                onValueChange={(value: "todo" | "in-progress" | "done") =>
+                                    setNewTask({ ...newTask, status: value })
+                                }
+                            >
+                                <SelectTrigger id="status">
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="todo">To Do</SelectItem>
+                                    <SelectItem value="in-progress">In Progress</SelectItem>
+                                    <SelectItem value="done">Done</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                className="bg-gradient-to-r from-purple-600 to-blue-600"
+                                onClick={handleCreateTask}
+                            >
+                                Create Task
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
