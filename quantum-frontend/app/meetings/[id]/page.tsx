@@ -20,6 +20,7 @@ import {
     CheckCircle2,
     AlertCircle,
     Download,
+    Share2,
     ArrowLeft,
     RefreshCw,
     Radio,
@@ -28,6 +29,7 @@ import { mockMeetings } from "@/lib/mock-data";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { generateMockPDF } from "./pdf-genretor";
 
 interface TranscriptSegment {
     speaker?: string;
@@ -124,6 +126,61 @@ export default function MeetingPage({ params }: { params: { id: string } }) {
         }
     };
 
+    const handleExportPDF = () => {
+        try {
+          const highlights = [
+            "Discussed Q1 product roadmap and priority features",
+            "Reviewed marketing strategy and campaign timeline",
+            "Analyzed market trends and competitive landscape",
+            "Evaluated budget allocation for different departments"
+          ];
+      
+          const highPriority = [
+            "Approved Q1 product roadmap with all proposed features",
+            "Greenlit marketing campaign launch for January 20th",
+            "Allocated additional budget for user research initiatives",
+            "Scheduled follow-up meeting for January 19th"
+          ];
+      
+          const pdfFilename = generateMockPDF({
+            title: meeting.title,
+            date: meeting.date,
+            duration: meeting.duration,
+            participants: meeting.participants.map(name => ({
+              name,
+              initials: name.split(" ").map(n => n[0]).join("")
+            })),
+      
+            summary: meeting.summary,
+            transcriptSummary: meeting.summary, // you can replace with real AI summary later
+      
+            highlights,
+            highPriority,
+      
+            emotionAnalysis: {
+              sentimentScore: meeting.emotionData.overallScore,
+              engagementScore: meeting.emotionData.overallScore,
+              timeline: meeting.emotionData.timeline.map(t => ({
+                time: t.timestamp,
+                emotion: t.emotion
+              })),
+              participants: meeting.participants.map(name => ({
+                name,
+                overallMood: "Focused",
+                confidence: 80 + Math.floor(Math.random() * 10),
+                engagement: 75 + Math.floor(Math.random() * 15)
+              }))
+            }
+          });
+      
+          toast.success(`PDF exported successfully: ${pdfFilename}`);
+        } catch (error) {
+          console.error("PDF export failed:", error);
+          toast.error("Failed to export PDF");
+        }
+      };
+      
+
     return (
         <div className="min-h-screen bg-background">
             {/* Navigation */}
@@ -198,7 +255,10 @@ export default function MeetingPage({ params }: { params: { id: string } }) {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                            <Button 
+                                onClick={handleExportPDF}
+                                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                            >
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                             </Button>
