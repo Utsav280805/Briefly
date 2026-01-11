@@ -491,7 +491,7 @@ export default function MeetingPage({ params }: { params: { id: string } }) {
                                         </div>
                                     ))}
                                 </div>
-                                <Link href="/analytics/emotion">
+                                <Link href={`/analytics/emotion?platform=${meetingPlatform}&meetingId=${params.id}`}>
                                     <Button variant="outline" className="w-full">
                                         View Full Analysis
                                     </Button>

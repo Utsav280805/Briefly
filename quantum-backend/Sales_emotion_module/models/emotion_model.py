@@ -162,7 +162,6 @@ class TransferLearningModel(nn.Module):
         return self.resnet(x)
 
 class KerasEmotionModel:
-    """Wrapper class for Keras/TensorFlow emotion models (e.g., external .h5 models)."""
     
     def __init__(self, model_path):
         if not TENSORFLOW_AVAILABLE:
@@ -183,14 +182,7 @@ class KerasEmotionModel:
             raise
     
     def predict(self, face_image):
-        """Predict emotion from face image using Keras model.
         
-        Args:
-            face_image: Input face image (numpy array)
-            
-        Returns:
-            Dictionary with emotion prediction results
-        """
         if self.model is None:
             raise ValueError("Model not loaded")
         
@@ -244,23 +236,7 @@ class KerasEmotionModel:
         pass
 
 def load_model(model_path, model_type='modern'):
-    """Load the appropriate model based on type and file extension.
-
-    This is the single source of truth for loading emotion detection models.
-    It handles:
-    - Model initialization based on type
-    - State dictionary loading and preprocessing
-    - Metadata extraction
-    - Device placement
-    - Support for both PyTorch (.pth) and Keras (.h5) models
-
-    Args:
-        model_path (str): Path to the saved model file
-        model_type (str): Type of model to load ('modern', 'regularized', 'transfer', 'original', or 'keras')
-
-    Returns:
-        tuple: (model, metadata) where model is the loaded model and metadata is a dict
-    """
+    
     logger.info(f"Loading model from {model_path}")
     
     # Check if it's a Keras model based on file extension

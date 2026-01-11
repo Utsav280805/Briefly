@@ -302,9 +302,13 @@ async def get_emotions(
         
         overall_score = ai_service.calculate_overall_emotion_score(emotion_data)
         
+        # Calculate engagement score (same as overall_score, but named for clarity)
+        engagement_score = overall_score
+        
         return {
             "success": True,
             "overall_score": overall_score,
+            "engagement_score": engagement_score,
             "timeline": emotion_data
         }
         

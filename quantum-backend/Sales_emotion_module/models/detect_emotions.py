@@ -10,39 +10,9 @@ import time
 from config import ANALYSIS_INTERVAL, MODEL_TYPE, MODEL_PATH, MODEL_TYPE_PROD, CONFIDENCE_THRESHOLD
 
 class SalesCallAnalyzer:
-    """A class for analyzing emotions in sales call videos.
-
-    This class provides functionality for:
-    - Face detection and tracking in video frames
-    - Emotion analysis using a trained deep learning model
-    - Engagement scoring based on emotional patterns
-    - Real-time visualization of analysis results
-
-    Attributes:
-        device (torch.device): Device to run the model on (CPU/GPU)
-        model (nn.Module): Loaded emotion detection model
-        metadata (dict): Model metadata including architecture and training info
-        face_cascade: OpenCV face detector
-        transform (transforms.Compose): Image preprocessing pipeline
-        selected_face (tuple): Coordinates of the selected face
-        tracked_face (tuple): Current tracked face coordinates
-        tracker: OpenCV face tracker
-        window_size (int): Number of frames to analyze for engagement scoring
-        emotion_history (deque): Recent emotion predictions
-        start_time (float): Analysis start timestamp
-        last_analysis_time (float): Last analysis timestamp
-        analysis_interval (float): Analysis interval in seconds
-        metrics (dict): Analysis metrics including emotion durations and changes
-    """
-
+    
     def __init__(self, model_path=MODEL_PATH, model_type_prod='keras', window_size=30):
-        """Initialize the SalesCallAnalyzer.
 
-        Args:
-            model_path (str): Path to the trained model file
-            model_type_prod (str): Type of model to use ('modern', 'regularized', 'transfer', 'original', or 'keras')
-            window_size (int): Number of frames to consider for engagement scoring
-        """
         # Initialize timing variables
         self.start_time = time.time()
         self.last_analysis_time = 0
